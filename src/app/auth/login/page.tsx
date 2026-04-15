@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function LoginPage() {
+// Component ที่ใช้ useSearchParams ต้องอยู่ใน Suspense
+function LoginForm() {
   const supabase = createClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -238,5 +239,20 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  )
+}
+
+// Main export ที่ห่อด้วย Suspense
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-dvh grid place-items-center p-6 bg-gray-50">
+        <div className="w-full max-w-sm text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-gray-900 border-t-transparent rounded-full mx-auto" />
+        </div>
+      </main>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }

@@ -179,7 +179,10 @@ export default function WorkCalendar() {
             if (!authUser) return;
             const { data: profile } = await supabase.from("profiles").select("role").eq("id", authUser.id).single();
             const { data: employee } = await supabase.from("employees").select("id").eq("user_id", authUser.id).single();
-            const admin = profile?.role === 'admin';
+            // Owner emails ได้ role 'owner' เสมอ
+            const OWNER_EMAILS = ['realrockza@gmail.com'];
+            const isOwner = authUser.email ? OWNER_EMAILS.includes(authUser.email) : false;
+            const admin = profile?.role === 'admin' || isOwner;
             const empId = employee?.id ?? null;
             setIsAdmin(admin);
             setCurrentEmployeeId(empId);

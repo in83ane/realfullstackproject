@@ -202,7 +202,10 @@ export default function HomePage() {
             if (!authUser) return router.push("/auth/login");
             const { data: profile } = await supabase.from("profiles").select("role, email").eq("id", authUser.id).single();
             const { data: employee } = await supabase.from("employees").select("id, name").eq("user_id", authUser.id).single();
-            const userRole = profile?.role || 'user';
+            // Owner emails ได้ role 'owner' เสมอ ไม่ต้องพึ่ง profile
+            const OWNER_EMAILS = ['realrockza@gmail.com'];
+            const isOwner = authUser.email ? OWNER_EMAILS.includes(authUser.email) : false;
+            const userRole = isOwner ? 'owner' : (profile?.role || 'user');
             const userName = employee?.name || profile?.email?.split('@')[0] || "Admin";
             const employeeId = employee?.id || null;
             setUser({ id: authUser.id, role: userRole, name: userName, employeeId });

@@ -3,6 +3,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import LogoutButton from '@/components/ui/LogoutButton'
 import { Mail, ShieldCheck, Settings as SettingsIcon } from 'lucide-react'
 
+// Owner emails - ได้ role owner เสมอ
+const OWNER_EMAILS = ['realrockza@gmail.com']
+
 function initials(nameOrEmail?: string) {
   if (!nameOrEmail) return 'U'
   const base = nameOrEmail.includes(' ')
@@ -24,7 +27,8 @@ export default async function SettingsPage() {
 
   const name = (user?.user_metadata?.full_name as string) || user?.email || 'User'
   const avatarUrl = user?.user_metadata?.avatar_url as string | undefined
-  const role = profile?.role || 'user'
+  const isOwner = user?.email ? OWNER_EMAILS.includes(user.email) : false
+  const role = isOwner ? 'owner' : (profile?.role || 'user')
 
   return (
     <div className="min-h-screen bg-slate-50/50 flex justify-center p-4 md:p-8">

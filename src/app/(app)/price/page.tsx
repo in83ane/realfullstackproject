@@ -138,7 +138,10 @@ export default function PricePage() {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-                setUserRole(profile?.role || 'admin');
+                // Owner emails ได้ role 'owner' เสมอ
+                const OWNER_EMAILS = ['realrockza@gmail.com'];
+                const isOwner = user.email ? OWNER_EMAILS.includes(user.email) : false;
+                setUserRole(isOwner ? 'owner' : (profile?.role || 'admin'));
             } else { setUserRole('admin'); }
             await fetchProducts();
             setLoading(false);

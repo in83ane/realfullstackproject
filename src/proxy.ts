@@ -80,8 +80,9 @@ export async function proxy(request: NextRequest) {
 
       const userEmail = user.email || ''
       const isOwnerEmail = OWNER_EMAILS.includes(userEmail)
-      const userRole = profile?.role || 'user'
-      const isAdmin = userRole === 'admin' || userRole === 'owner' || isOwnerEmail
+      // ถ้าเป็น owner email ให้ใช้ role 'owner' ทันที ไม่ต้องพึ่ง profile
+      const userRole = isOwnerEmail ? 'owner' : (profile?.role || 'user')
+      const isAdmin = userRole === 'admin' || userRole === 'owner'
 
       // สำคัญ: admin/owner ถือว่าอนุมัติแล้วเสมอ
       // หรือถ้า is_approved เป็น null (user เก่า) หรือ true → อนุมัติแล้ว

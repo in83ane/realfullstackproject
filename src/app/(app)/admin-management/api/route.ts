@@ -1,6 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
+// Owner emails - ได้ role owner เสมอ
+const OWNER_EMAILS = ['realrockza@gmail.com'];
+
+// Helper function to check if user is owner
+function isOwnerEmail(email: string | undefined): boolean {
+    return email ? OWNER_EMAILS.includes(email) : false;
+}
+
 // POST - Create new admin user
 export async function POST(req: NextRequest) {
     try {
@@ -18,7 +26,7 @@ export async function POST(req: NextRequest) {
             .eq("id", currentUser.id)
             .single();
 
-        if (profile?.role !== 'owner') {
+        if (profile?.role !== 'owner' && !isOwnerEmail(currentUser.email)) {
             return NextResponse.json({ error: "Only owner can add admins" }, { status: 403 });
         }
 
@@ -80,7 +88,7 @@ export async function PATCH(req: NextRequest) {
             .eq("id", currentUser.id)
             .single();
 
-        if (profile?.role !== 'owner') {
+        if (profile?.role !== 'owner' && !isOwnerEmail(currentUser.email)) {
             return NextResponse.json({ error: "Only owner can manage admins" }, { status: 403 });
         }
 
@@ -123,7 +131,7 @@ export async function DELETE(req: NextRequest) {
             .eq("id", currentUser.id)
             .single();
 
-        if (profile?.role !== 'owner') {
+        if (profile?.role !== 'owner' && !isOwnerEmail(currentUser.email)) {
             return NextResponse.json({ error: "Only owner can remove admins" }, { status: 403 });
         }
 

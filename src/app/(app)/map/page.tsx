@@ -169,7 +169,10 @@ export default function MapPage() {
         supabase.from('departments').select('name, color_code'),
       ]);
 
-      const admin = profile?.role === 'admin';
+      // Owner emails ได้ role 'owner' เสมอ
+      const OWNER_EMAILS = ['realrockza@gmail.com'];
+      const isOwner = authUser.email ? OWNER_EMAILS.includes(authUser.email) : false;
+      const admin = profile?.role === 'admin' || isOwner;
       const empId = employee?.id ?? null;
       setIsAdmin(admin);
       setEmployees((empsData ?? []) as unknown as Employee[]);

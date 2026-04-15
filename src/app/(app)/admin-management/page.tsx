@@ -43,7 +43,10 @@ export default function AdminManagementPage() {
                     .eq("id", user.id)
                     .single();
 
-                const role = profile?.role || 'user';
+                // Owner emails ได้ role 'owner' เสมอ
+                const OWNER_EMAILS = ['realrockza@gmail.com'];
+                const isOwner = user.email ? OWNER_EMAILS.includes(user.email) : false;
+                const role = isOwner ? 'owner' : (profile?.role || 'user');
                 setUserRole(role);
 
                 // Redirect non-owners

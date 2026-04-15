@@ -27,11 +27,14 @@ export default function Sidebar() {
             .select('role')
             .eq('id', user.id)
             .single()
-          const userRole = profile?.role || 'user'
+          // Owner emails ได้ role 'owner' เสมอ
+          const OWNER_EMAILS = ['realrockza@gmail.com']
+          const isOwner = user.email ? OWNER_EMAILS.includes(user.email) : false
+          const userRole = isOwner ? 'owner' : (profile?.role || 'user')
           setRole(userRole)
 
           // ถ้าเป็น admin หรือ owner ให้โหลดจำนวนที่รออนุมัติ
-          if (userRole === 'admin') {
+          if (userRole === 'admin' || userRole === 'owner') {
             const { count, error: countError } = await supabase
               .from('employees')
               .select('*', { count: 'exact', head: true })
@@ -104,8 +107,8 @@ export default function Sidebar() {
               </div>
             )
           })}
-          {/* Employees Link with Badge - เฉพาะ admin เท่านั้น */}
-          {role === 'admin' && (
+          {/* Employees Link with Badge - เฉพาะ admin และ owner */}
+          {(role === 'admin' || role === 'owner') && (
             <div className="relative group flex justify-center">
               <Link
                 href="/employees"
@@ -187,8 +190,8 @@ export default function Sidebar() {
               </Link>
             )
           })}
-          {/* Employees Link for Mobile - เฉพาะ admin เท่านั้น */}
-          {role === 'admin' && (
+          {/* Employees Link for Mobile - เฉพาะ admin และ owner */}
+          {(role === 'admin' || role === 'owner') && (
             <Link
               href="/employees"
               className="flex flex-col items-center gap-1 min-w-[3rem] py-1 px-2 rounded-xl transition-all duration-200 active:scale-95 relative"

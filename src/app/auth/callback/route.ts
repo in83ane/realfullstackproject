@@ -96,12 +96,14 @@ export async function GET(request: Request) {
       }])
     }
 
-    // Determine redirect
-    const isApproved = profile?.is_approved === true || isAutoApproved || profile?.role === 'admin' || profile?.role === 'owner'
+    // Determine redirect - prioritize isAutoApproved
+    const isApproved = isAutoApproved || profile?.is_approved === true || profile?.role === 'admin' || profile?.role === 'owner'
     const redirectUrl = isApproved ? `${origin}/home` : `${origin}/auth/pending`
 
     console.log('Redirecting to:', redirectUrl)
     console.log('Is approved:', isApproved)
+    console.log('Is auto approved:', isAutoApproved)
+    console.log('Profile role:', profile?.role)
 
     return NextResponse.redirect(redirectUrl)
   }

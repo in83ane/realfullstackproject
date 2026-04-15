@@ -1,6 +1,9 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Email ที่เป็น owner - อนุมัติอัตโนมัติ
+const OWNER_EMAILS = ['realrockza@gmail.com']
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -75,16 +78,25 @@ export async function proxy(request: NextRequest) {
         console.error('Middleware profile fetch error:', profileError)
       }
 
+      const userEmail = user.email || ''
+      const isOwnerEmail = OWNER_EMAILS.includes(userEmail)
       const userRole = profile?.role || 'user'
-      const isAdmin = userRole === 'admin' || userRole === 'owner'
+      const isAdmin = userRole === 'admin' || userRole === 'owner' || isOwnerEmail
 
       // สำคัญ: admin/owner ถือว่าอนุมัติแล้วเสมอ
       // หรือถ้า is_approved เป็น null (user เก่า) หรือ true → อนุมัติแล้ว
-      const isApproved = isAdmin || profile?.is_approved === true || profile?.is_approved === null
+      // หรือถ้าเป็น owner email → อนุมัติอัตโนมัติ
+      const isApproved = isAdmin || profile?.is_approved === true || profile?.is_approved === null || isOwnerEmail
 
       // ถ้ายังไม่ได้รับการอนุมัติ → redirect ไป pending
       if (!isApproved) {
         return NextResponse.redirect(new URL('/auth/pending', request.url))
+      }
+
+      // ถ้าเป็น owner email แต่ยังไม่มี profile หรือไม่ใช่ admin → อัปเดตให้เป็น admin
+      if (isOwnerEmail && profile && profile.role !== 'admin' && profile.role !== 'owner') {
+        // อัปเดต profile เป็น admin แบบ async ไม่ต้องรอ (fire and forget)
+        supabase.from('profiles').update({ role: 'admin', is_approved: true }).eq('id', user.id).then()
       }
 
       // ถ้าเข้าหน้า Admin แต่ไม่ใช่ Admin/Owner → redirect ไป home

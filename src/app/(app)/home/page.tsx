@@ -198,8 +198,18 @@ export default function HomePage() {
     useEffect(() => {
         async function init() {
             setLoading(true);
-            const { data: { user: authUser } } = await supabase.auth.getUser();
-            if (!authUser) return router.push("/auth/login");
+
+            // Wait a moment for session to initialize from storage
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+            if (authError || !authUser) {
+                console.log('No authenticated user found, redirecting to login');
+                router.push("/auth/login");
+                return;
+            }
+
             const { data: profile } = await supabase.from("profiles").select("role, email").eq("id", authUser.id).single();
             const { data: employee } = await supabase.from("employees").select("id, name").eq("user_id", authUser.id).single();
             // Owner emails ได้ role 'owner' เสมอ ไม่ต้องพึ่ง profile
@@ -213,11 +223,22 @@ export default function HomePage() {
             setLoading(false);
         }
         init();
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_OUT') {
+                router.push('/auth/login');
+            }
+        });
+
         const handleClickOutside = (e: MouseEvent) => {
             if (deptDropdownRef.current && !deptDropdownRef.current.contains(e.target as Node)) setIsDeptOpen(false);
         };
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+            subscription.unsubscribe();
+        };
     }, [supabase, router, refreshData]);
 
     const handleLocationInput = (value: string) => {

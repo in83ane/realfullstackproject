@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Email ที่เป็น owner - อนุมัติอัตโนมัติ
 const OWNER_EMAILS = ['realrockza@gmail.com']
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let response = NextResponse.next({
     request: {
       headers: request.headers,

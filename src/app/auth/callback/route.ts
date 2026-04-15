@@ -7,10 +7,11 @@ const AUTO_APPROVED_EMAILS = ['realrockza@gmail.com']
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
+  const next = searchParams.get('next') ?? '/'
 
   if (code) {
-    // Create initial response
-    const response = NextResponse.redirect(`${origin}/auth/pending`)
+    // Create a cookie store to track all cookies that need to be set
+    const cookiesToSet: { name: string; value: string; options: CookieOptions }[] = []
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,45 +19,38 @@ export async function GET(request: Request) {
       {
         cookies: {
           get(name: string) {
-            const cookie = request.headers.get('cookie')?.match(new RegExp(`${name}=([^;]+)`))?.[1]
-            return cookie
+            const match = request.headers.get('cookie')?.match(new RegExp(`${name}=([^;]+)`))
+            return match?.[1]
           },
           set(name: string, value: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value,
-              httpOnly: true,
-              maxAge: options.maxAge,
-              path: options.path || '/',
-              sameSite: options.sameSite,
-              secure: options.secure,
-            })
+            cookiesToSet.push({ name, value, options })
           },
           remove(name: string, options: CookieOptions) {
-            response.cookies.set({
-              name,
-              value: '',
-              httpOnly: true,
-              maxAge: 0,
-              path: options.path || '/',
-            })
+            cookiesToSet.push({ name, value: '', options: { ...options, maxAge: 0 } })
           },
         },
       }
     )
 
-    const { data: { user }, error } = await supabase.auth.exchangeCodeForSession(code)
+    const { data: { user, session }, error } = await supabase.auth.exchangeCodeForSession(code)
+
+    console.log('Callback - User:', user?.email)
+    console.log('Callback - Session:', session ? 'exists' : 'null')
+    console.log('Callback - Error:', error)
+    console.log('Callback - Cookies to set:', cookiesToSet.length)
 
     if (error || !user) {
       console.error('Auth callback error:', error)
       return NextResponse.redirect(`${origin}/auth/login?error=auth_failed`)
     }
 
-    // ตรวจสอบว่าเป็น auto-approved email หรือไม่
+    // Determine redirect URL
     const userEmail = user.email || ''
     const isAutoApproved = AUTO_APPROVED_EMAILS.includes(userEmail)
 
-    // เช็ค profile
+    let redirectUrl = `${origin}/auth/pending?email=${encodeURIComponent(userEmail)}`
+
+    // Check profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('is_approved, role, full_name')
@@ -72,22 +66,15 @@ export async function GET(request: Request) {
     const isNewUser = !profile || profile.is_approved === null || profile.is_approved === undefined
 
     if (isNewUser) {
-      // สร้าง profile ใหม่
-      const { error: upsertError } = await supabase
-        .from('profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          is_approved: isAutoApproved,
-          full_name: fullName,
-          role: isAutoApproved ? 'admin' : 'user'
-        }, { onConflict: 'id' })
+      await supabase.from('profiles').upsert({
+        id: user.id,
+        email: user.email,
+        is_approved: isAutoApproved,
+        full_name: fullName,
+        role: isAutoApproved ? 'admin' : 'user'
+      }, { onConflict: 'id' })
 
-      if (upsertError) {
-        console.error('Profile upsert error:', upsertError)
-      }
-
-      // สร้าง employee record
+      // Create employee record
       const { data: existingEmployee } = await supabase
         .from('employees')
         .select('id')
@@ -103,28 +90,35 @@ export async function GET(request: Request) {
         }])
       }
 
-      // Redirect based on approval
       if (isAutoApproved) {
-        response.headers.set('Location', `${origin}/home`)
-      } else {
-        response.headers.set('Location', `${origin}/auth/pending?email=${encodeURIComponent(user.email || '')}`)
+        redirectUrl = `${origin}/home`
       }
-      return response
-    }
-
-    // ถ้ายังไม่ได้รับการอนุมัติ
-    if (!profile.is_approved && profile.role !== 'admin' && profile.role !== 'owner') {
+    } else if (!profile.is_approved && profile.role !== 'admin' && profile.role !== 'owner') {
       if (isAutoApproved) {
         await supabase.from('profiles').update({ is_approved: true, role: 'admin' }).eq('id', user.id)
-        response.headers.set('Location', `${origin}/home`)
-      } else {
-        response.headers.set('Location', `${origin}/auth/pending?email=${encodeURIComponent(user.email || '')}`)
+        redirectUrl = `${origin}/home`
       }
-      return response
+    } else {
+      redirectUrl = `${origin}/home`
     }
 
-    // ผ่านการอนุมัติแล้ว
-    response.headers.set('Location', `${origin}/home`)
+    // Create response with redirect and set all cookies
+    const response = NextResponse.redirect(redirectUrl)
+
+    // Apply all cookies that Supabase wanted to set
+    cookiesToSet.forEach(({ name, value, options }) => {
+      response.cookies.set({
+        name,
+        value,
+        httpOnly: true,
+        maxAge: options.maxAge,
+        path: options.path || '/',
+        sameSite: options.sameSite as 'lax' | 'strict' | 'none' | undefined,
+        secure: options.secure ?? process.env.NODE_ENV === 'production',
+      })
+    })
+
+    console.log('Callback - Redirecting to:', redirectUrl)
     return response
   }
 

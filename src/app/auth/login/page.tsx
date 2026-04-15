@@ -13,11 +13,33 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  // Owner emails - bypass approval check
+  const OWNER_EMAILS = ['realrockza@gmail.com']
+
   const handleLogin = async () => {
     setError(null)
 
     if (!email || !password) {
       setError('กรุณากรอก Email และ Password')
+      return
+    }
+
+    // Owner email bypass
+    if (OWNER_EMAILS.includes(email)) {
+      setLoading(true)
+      try {
+        const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+        if (authError) {
+          setError(authError.message)
+          return
+        }
+        router.push('/home')
+        return
+      } catch (err) {
+        setError('เกิดข้อผิดพลาด')
+      } finally {
+        setLoading(false)
+      }
       return
     }
 

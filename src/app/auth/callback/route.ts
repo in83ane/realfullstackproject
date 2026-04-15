@@ -1,17 +1,17 @@
 import { NextResponse } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 // Email ที่อนุมัติอัตโนมัติ (ไม่ต้องรอ admin)
 const AUTO_APPROVED_EMAILS = ['realrockza@gmail.com']
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
-  const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
+  const requestUrl = new URL(request.url)
+  const code = requestUrl.searchParams.get('code')
+  const origin = requestUrl.origin
 
   if (code) {
-    // Create a cookie store to track all cookies that need to be set
-    const cookiesToSet: { name: string; value: string; options: CookieOptions }[] = []
+    const cookieStore = await cookies()
 
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -19,14 +19,13 @@ export async function GET(request: Request) {
       {
         cookies: {
           get(name: string) {
-            const match = request.headers.get('cookie')?.match(new RegExp(`${name}=([^;]+)`))
-            return match?.[1]
+            return cookieStore.get(name)?.value
           },
           set(name: string, value: string, options: CookieOptions) {
-            cookiesToSet.push({ name, value, options })
+            cookieStore.set({ name, value, ...options })
           },
           remove(name: string, options: CookieOptions) {
-            cookiesToSet.push({ name, value: '', options: { ...options, maxAge: 0 } })
+            cookieStore.set({ name, value: '', ...options, maxAge: 0 })
           },
         },
       }
@@ -37,7 +36,6 @@ export async function GET(request: Request) {
     console.log('Callback - User:', user?.email)
     console.log('Callback - Session:', session ? 'exists' : 'null')
     console.log('Callback - Error:', error)
-    console.log('Callback - Cookies to set:', cookiesToSet.length)
 
     if (error || !user) {
       console.error('Auth callback error:', error)
@@ -102,23 +100,10 @@ export async function GET(request: Request) {
       redirectUrl = `${origin}/home`
     }
 
-    // Create response with redirect and set all cookies
-    const response = NextResponse.redirect(redirectUrl)
-
-    // Apply all cookies that Supabase wanted to set
-    cookiesToSet.forEach(({ name, value, options }) => {
-      response.cookies.set({
-        name,
-        value,
-        httpOnly: true,
-        maxAge: options.maxAge,
-        path: options.path || '/',
-        sameSite: options.sameSite as 'lax' | 'strict' | 'none' | undefined,
-        secure: options.secure ?? process.env.NODE_ENV === 'production',
-      })
-    })
-
     console.log('Callback - Redirecting to:', redirectUrl)
+
+    // Important: Create a fresh response after all cookie operations
+    const response = NextResponse.redirect(redirectUrl)
     return response
   }
 

@@ -13,10 +13,19 @@ export const createClient = async () => {
           return cookieStore.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set(name, value, options)
+          try {
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // ถ้าไม่สามารถ set cookie ได้ (เช่นใน middleware) ให้ข้ามไป
+            console.warn('Failed to set cookie:', name, error)
+          }
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.set(name, '', { ...options, maxAge: 0 })
+          try {
+            cookieStore.set({ name, value: '', ...options, maxAge: 0 })
+          } catch (error) {
+            console.warn('Failed to remove cookie:', name, error)
+          }
         },
       },
     }

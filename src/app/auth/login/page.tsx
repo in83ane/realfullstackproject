@@ -1,17 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
 export default function LoginPage() {
   const supabase = createClient()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // อ่าน error จาก URL (ถ้ามี)
+  useEffect(() => {
+    const errorParam = searchParams?.get('error')
+    if (errorParam === 'auth_failed') {
+      setError('การยืนยันตัวตนล้มเหลว กรุณาลองใหม่อีกครั้ง')
+    }
+  }, [searchParams])
 
   // Owner emails - bypass approval check
   const OWNER_EMAILS = ['realrockza@gmail.com']

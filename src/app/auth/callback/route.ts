@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
 // Email ที่อนุมัติอัตโนมัติ (ไม่ต้องรอ admin)
 const AUTO_APPROVED_EMAILS = ['realrockza@gmail.com']
@@ -9,7 +9,27 @@ export async function GET(req: Request) {
   const code = searchParams.get('code')
 
   if (code) {
-    const supabase = await createClient()
+    // Create response for setting cookies
+    let response = NextResponse.redirect(`${origin}/home`)
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return req.headers.get('cookie')?.match(new RegExp(`${name}=([^;]+)`))?.[1]
+          },
+          set(name: string, value: string, options: CookieOptions) {
+            response.cookies.set({ name, value, ...options })
+          },
+          remove(name: string, options: CookieOptions) {
+            response.cookies.set({ name, value: '', ...options, maxAge: 0 })
+          },
+        },
+      }
+    )
+
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (error || !data.user) {
@@ -25,7 +45,6 @@ export async function GET(req: Request) {
         .eq('id', data.user.id)
         .maybeSingle()
 
-      // ถ้ามี error ที่ไม่ใช่ "ไม่พบข้อมูล" ให้ log ไว้
       if (profileError && profileError.code !== 'PGRST116') {
         console.error('Profile fetch error:', profileError)
       }
@@ -36,37 +55,32 @@ export async function GET(req: Request) {
                        data.user.email?.split('@')[0] ||
                        'New User'
 
-      // เช็คว่าเป็น auto-approved email หรือไม่
       const userEmail = data.user.email || ''
       const isAutoApproved = AUTO_APPROVED_EMAILS.includes(userEmail)
 
-      // ถ้าไม่มี profile หรือ is_approved ยังไม่ถูกตั้งค่า (user ใหม่)
       const isNewUser = !profile || profile.is_approved === null || profile.is_approved === undefined
 
       if (isNewUser) {
-        // ตั้งค่า is_approved = true สำหรับ auto-approved, false สำหรับคนอื่น
         const { error: upsertError } = await supabase
           .from('profiles')
           .upsert({
             id: data.user.id,
             email: data.user.email,
-            is_approved: isAutoApproved,  // true สำหรับ auto-approved emails
+            is_approved: isAutoApproved,
             full_name: fullName,
-            role: isAutoApproved ? 'admin' : 'user'  // ให้ admin role ถ้า auto-approved
+            role: isAutoApproved ? 'admin' : 'user'
           }, { onConflict: 'id' })
 
         if (upsertError) {
           console.error('Profile upsert error:', upsertError)
         }
 
-        // ตรวจสอบว่ามี employee record อยู่แล้วหรือไม่
         const { data: existingEmployee } = await supabase
           .from('employees')
           .select('id')
           .eq('user_id', data.user.id)
           .maybeSingle()
 
-        // สร้าง employee record สำหรับรออนุมัติ (ถ้ายังไม่มี)
         if (!existingEmployee) {
           const { error: empError } = await supabase
             .from('employees')
@@ -82,29 +96,29 @@ export async function GET(req: Request) {
           }
         }
 
-        // Redirect ไปหน้า home ถ้า auto-approved, ไปหน้ารออนุมัติถ้าไม่ใช่
+        // Update redirect URL based on approval
         if (isAutoApproved) {
-          return NextResponse.redirect(`${origin}/home`)
+          response = NextResponse.redirect(`${origin}/home`)
+        } else {
+          response = NextResponse.redirect(`${origin}/auth/pending?email=${encodeURIComponent(data.user.email || '')}`)
         }
-        return NextResponse.redirect(`${origin}/auth/pending?email=${encodeURIComponent(data.user.email || '')}`)
+        return response
       }
 
-      // ถ้ายังไม่ได้รับการอนุมัติ และไม่ใช่ admin/owner
-      // แต่ถ้าเป็น auto-approved email → อัปเดตให้เป็น approved และ admin
       if (!profile.is_approved && profile.role !== 'admin' && profile.role !== 'owner') {
         if (isAutoApproved) {
-          // อัปเดต profile ให้เป็น approved และ admin
           await supabase
             .from('profiles')
             .update({ is_approved: true, role: 'admin' })
             .eq('id', data.user.id)
-          return NextResponse.redirect(`${origin}/home`)
+          response = NextResponse.redirect(`${origin}/home`)
+        } else {
+          response = NextResponse.redirect(`${origin}/auth/pending?email=${encodeURIComponent(data.user.email || '')}`)
         }
-        return NextResponse.redirect(`${origin}/auth/pending?email=${encodeURIComponent(data.user.email || '')}`)
+        return response
       }
 
-      // ผ่านการอนุมัติแล้ว หรือเป็น admin/owner
-      return NextResponse.redirect(`${origin}/home`)
+      return response
     } catch (err) {
       console.error('Callback processing error:', err)
       return NextResponse.redirect(`${origin}/auth/login?error=server_error`)

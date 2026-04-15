@@ -38,14 +38,23 @@ function LoginForm() {
     if (OWNER_EMAILS.includes(email)) {
       setLoading(true)
       try {
-        const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+        console.log('Attempting login for owner:', email)
+        const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+        console.log('Login result:', { data, error: authError })
         if (authError) {
+          console.error('Auth error:', authError)
           setError(authError.message)
           return
         }
-        router.push('/home')
+        if (data?.session) {
+          console.log('Login successful, session:', data.session)
+          router.push('/home')
+        } else {
+          setError('ไม่พบ session กรุณาลองใหม่อีกครั้ง')
+        }
         return
       } catch (err) {
+        console.error('Login exception:', err)
         setError('เกิดข้อผิดพลาด')
       } finally {
         setLoading(false)
